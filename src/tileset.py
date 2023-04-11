@@ -1,7 +1,6 @@
 # from random import random, seed
 import heapq
 import time
-from random import seed
 from typing import List, Tuple
 
 import pygame as pg
@@ -97,8 +96,15 @@ class Tile(Sprite):
         if self.x < self.width - 1 and self.y < self.height - 1:
             self.adj_coords.append((self.x + 1, self.y + 1))
 
-    def set_type(self, tile_type: TileType):
+    def set_type(self, map: "Map", tile_type: TileType):
         self.type = tile_type
+        if tile_type == TileType.NOT_PASSABLE:
+            for coord in self.adj_coords:
+                x, y = coord
+                tile: Tile = map._map[x][y]
+                tile.adj_coords[:] = [
+                    coord_ for coord_ in tile.adj_coords if coord_ != (self.x, self.y)
+                ]
 
 
 class Map:
@@ -115,7 +121,6 @@ class Map:
         self.cols = WINDOW_WIDTH // TILE_WIDTH
         self.rows = WINDOW_HEIGHT // TILE_HEIGHT
 
-        seed(0)
         for col in range(self.cols):
             self._map.append([])
             for row in range(self.rows):
@@ -163,11 +168,23 @@ class Map:
 
     def set_barrier(self, pos: Vector2):
         tile = self._get_tile(pos)
-        tile.set_type(TileType.NOT_PASSABLE)
+        tile.set_type(self, TileType.NOT_PASSABLE)
+
+    def count_tiles_with_prev(self):
+        count = 0
+        for col in range(self.cols):
+            for row in range(self.rows):
+                tile = self._map[col][row]
+                if tile.prev:
+                    count += 1
+        return count
 
     def find_path(self, start_pos: Vector2, end_pos: Vector2) -> List[Vector2]:
         start_tile = self._get_tile(start_pos)
         end_tile = self._get_tile(end_pos)
+        searched_cells = 0
+        # print(start_tile.x, start_tile.y)
+        # print(end_tile.x, end_tile.y)
 
         open_set = []  # Nodes that need to be evaluated
         heapq.heappush(open_set, (start_tile.f, start_tile))
@@ -183,18 +200,34 @@ class Map:
 
             if current == end_tile:
                 # Backtrack to get the path
-                path = []
+                print("Done")
+                print("searched cells: ", searched_cells)
+                path = [end_tile]
                 temp = current
                 path.append(temp)
                 while temp.prev:
                     temp.is_path = True
                     path.append(temp.prev)
                     temp = temp.prev
-                return path
+                # TODO: Store these node properties in a seperate data structure so we dont have
+                # to come back and reset.
+                for col in range(self.cols):
+                    for row in range(self.rows):
+                        tile = self._map[col][row]
+                        tile.prev = None
+                        tile.f = 0
+                        tile.g = 0
+                        tile.h = 0
+
+                return path[0:-1]
 
             # Get neighbours
             for x, y in current.adj_coords:
+                searched_cells += 1
                 neighbour = self._map[x][y]
+
+                # if neighbour.type == TileType.NOT_PASSABLE:
+                #     continue
 
                 if neighbour not in closed_set:
                     temp_g = current.g + 1

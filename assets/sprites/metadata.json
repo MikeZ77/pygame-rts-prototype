@@ -1,6 +1,7 @@
 [
     {
         "sheet": "footman",
+        "circle_radius":10,
         "sprites": [
             {
                 "x": 22,

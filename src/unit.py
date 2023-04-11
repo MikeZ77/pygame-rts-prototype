@@ -6,7 +6,7 @@ from pygame import Surface
 from pygame.math import Vector2
 from transitions import Machine
 
-from constants import PROJECT_ROOT
+from constants import MAGENTA, NEON_GREEN, PROJECT_ROOT
 from tileset import Tile
 from types_ import SpriteAnimationType as Animation
 
@@ -15,6 +15,17 @@ class Unit(pg.sprite.Sprite):
     SPRITE_FOLDER = PROJECT_ROOT + "/assets/sprites/"
     METADATA_FILE = SPRITE_FOLDER + "metadata.json"
     states = ["IDLE", "MOVING"]
+
+    animation_lookup = {
+        (0, -1): Animation.VERTICAL_UP,
+        (1, 0): Animation.HORIZONTAL_RIGHT,
+        (0, 1): Animation.VERTICAL_DOWN,
+        (-1, 0): Animation.HORIZONTAL_LEFT,
+        (1, -1): Animation.DIAGONAL_UP_RIGHT,
+        (1, 1): Animation.DIAGONAL_DOWN_RIGHT,
+        (-1, 1): Animation.DIAGONAL_DOWN_LEFT,
+        (-1, -1): Animation.DIAGONAL_UP_LEFT,
+    }
 
     def __init__(self, *, position: Tuple[int, int], unit: str, speed: int = 40):
         super().__init__()
@@ -40,6 +51,7 @@ class Unit(pg.sprite.Sprite):
         self.machine.add_transition(trigger="follow_path", source="IDLE", dest="MOVING")
         self.machine.add_transition(trigger="finished_path", source="MOVING", dest="IDLE")
         self.path: Union[List[Tile], None] = None
+        self.next_tile = None
         self.is_selected = False
         self.image = None
         self.rect = None
@@ -100,48 +112,49 @@ class Unit(pg.sprite.Sprite):
 
     def update(self, *, dt: float):
         # Our direction vectors
-        direction_up = Vector2(0, -1)
-        direction_up_right = Vector2(1, -1)
-        direction_right = Vector2(1, 0)
-        direction_down_right = Vector2(1, 1)
-        direction_down = Vector2(0, 1)
-        direction_down_left = Vector2(-1, 1)
-        direction_left = Vector2(-1, 0)
-        direction_up_left = Vector2(-1, -1)
+        # direction_up = Vector2(0, -1)
+        # direction_right = Vector2(1, 0)
+        # direction_down = Vector2(0, 1)
+        # direction_left = Vector2(-1, 0)
+        # direction_up_right = Vector2(1, -1)
+        # direction_down_right = Vector2(1, 1)
+        # direction_down_left = Vector2(-1, 1)
+        # direction_up_left = Vector2(-1, -1)
 
-        keys = pg.key.get_pressed()
-        # new_pos = old_pos + (dt * direction_vector * speed)
-        # new_pos = old_pos + (dt * velocity)
-        if keys[pg.K_UP] and keys[pg.K_RIGHT]:
-            self.position += dt * self.speed * direction_up_right.normalize()
-            self._cycle_sprite_frame(Animation.DIAGONAL_UP_RIGHT, dt)
+        if self.state == "MOVING":
+            if not self.next_tile:
+                self.next_tile = self.path.pop()
 
-        elif keys[pg.K_DOWN] and keys[pg.K_RIGHT]:
-            self.position += dt * self.speed * direction_down_right.normalize()
-            self._cycle_sprite_frame(Animation.DIAGONAL_DOWN_RIGHT, dt)
+            next_position = self.next_tile.rect.center
+            direction: Vector2 = round((Vector2(next_position) - self.position).normalize())
+            animation = self.animation_lookup.get(tuple(direction))
 
-        elif keys[pg.K_DOWN] and keys[pg.K_LEFT]:
-            self.position += dt * self.speed * direction_down_left.normalize()
-            self._cycle_sprite_frame(Animation.DIAGONAL_DOWN_LEFT, dt)
+            # print(direction, self.position, next_position)
+            # print(direction.length())
 
-        elif keys[pg.K_UP] and keys[pg.K_LEFT]:
-            self.position += dt * self.speed * direction_up_left.normalize()
-            self._cycle_sprite_frame(Animation.DIAGONAL_UP_LEFT, dt)
+            # TODO: Need to normalize diag vectors. Use enum values to check using > value.
+            self.position += dt * self.speed * direction
+            self._cycle_sprite_frame(animation, dt)
 
-        elif keys[pg.K_RIGHT]:
-            self.position += dt * self.speed * direction_right
-            self._cycle_sprite_frame(Animation.HORIZONTAL_RIGHT, dt)
-
-        elif keys[pg.K_LEFT]:
-            self.position += dt * self.speed * direction_left
-            self._cycle_sprite_frame(Animation.HORIZONTAL_LEFT, dt)
-
-        elif keys[pg.K_UP]:
-            self.position += dt * self.speed * direction_up
-            self._cycle_sprite_frame(Animation.VERTICAL_UP, dt)
-
-        elif keys[pg.K_DOWN]:
-            self.position += dt * self.speed * direction_down
-            self._cycle_sprite_frame(Animation.VERTICAL_DOWN, dt)
+            if tuple(round(self.position)) == next_position:
+                if len(self.path):
+                    self.next_tile.prev = None
+                    self.next_tile.is_path = False
+                    self.next_tile = None
+                else:
+                    self.state = "IDLE"
 
         self.rect.center = (round(self.position.x), round(self.position.y))
+
+    def draw(self, screen: Surface, end_pos: Tile):
+        if self.is_selected:
+            # TODO: This circle should be fixed when see metadata
+            radius = min(self.rect.width, self.rect.height) // 2
+            pg.draw.circle(screen, NEON_GREEN, self.rect.center, radius, 2)
+
+        if self.path and self.state == "IDLE":
+            self.follow_path()
+
+        if self.state == "MOVING":
+            pg.draw.line(screen, MAGENTA, self.rect.center, end_pos.rect.center, 1)
+            pg.draw.circle(screen, MAGENTA, end_pos.rect.center, 2)
