@@ -111,16 +111,9 @@ class Unit(pg.sprite.Sprite):
             self.rect = self.image.get_rect()
 
     def update(self, *, dt: float):
-        # Our direction vectors
-        # direction_up = Vector2(0, -1)
-        # direction_right = Vector2(1, 0)
-        # direction_down = Vector2(0, 1)
-        # direction_left = Vector2(-1, 0)
-        # direction_up_right = Vector2(1, -1)
-        # direction_down_right = Vector2(1, 1)
-        # direction_down_left = Vector2(-1, 1)
-        # direction_up_left = Vector2(-1, -1)
-
+        """
+        Updates are received by the GameManager and handled here based on the current state.
+        """
         if self.state == "MOVING":
             if not self.next_tile:
                 self.next_tile = self.path.pop()

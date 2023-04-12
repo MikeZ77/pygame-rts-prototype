@@ -10,16 +10,7 @@ from pygame.math import Vector2
 # from pygame.math import Vector2
 from pygame.sprite import Sprite
 
-from constants import (
-    BLACK,
-    GREEN,
-    NEON_GREEN,
-    TILE_HEIGHT,
-    TILE_WIDTH,
-    WINDOW_HEIGHT,
-    WINDOW_WIDTH,
-    YELLOW,
-)
+from constants import BLACK, GREEN, NEON_GREEN, TILE_HEIGHT, TILE_WIDTH, YELLOW
 from types_ import TileType
 
 
@@ -115,11 +106,14 @@ class Map:
     Args: None
     """
 
-    def __init__(self):
+    def __init__(self, map_surface: Surface):
+        self.map_surface = map_surface
         self._map: List[List[Tile]] = []
         self.grid = False
-        self.cols = WINDOW_WIDTH // TILE_WIDTH
-        self.rows = WINDOW_HEIGHT // TILE_HEIGHT
+        self.path: List[Tile] = []
+        self.holes: List[Tile] = []
+        self.cols = self.map_surface.get_width() // TILE_WIDTH
+        self.rows = self.map_surface.get_height() // TILE_HEIGHT
 
         for col in range(self.cols):
             self._map.append([])
@@ -151,24 +145,40 @@ class Map:
         return self._map[x][y]
 
     def draw(self, display_surface: Surface):
-        for col in range(self.cols):
-            for row in range(self.rows):
-                tile = self._map[col][row]
+        # self.map_surface.fill(GREEN)
+        for tile in self.path:
+            if tile.is_path:
+                pg.draw.rect(display_surface, YELLOW, tile)
 
-                if tile.type == TileType.PASSABLE:
-                    pg.draw.rect(display_surface, YELLOW, tile) if tile.is_path else pg.draw.rect(
-                        display_surface, GREEN, tile
-                    )
+        for tile in self.holes:
+            pg.draw.rect(display_surface, BLACK, tile)
 
-                if tile.type == TileType.NOT_PASSABLE:
-                    pg.draw.rect(display_surface, BLACK, tile)
+        # TODO: The grid should only be rendered over the current view port
+        #         if self.grid:
+        #             pg.draw.rect(display_surface, NEON_GREEN, tile, 1)
 
-                if self.grid:
-                    pg.draw.rect(display_surface, NEON_GREEN, tile, 1)
+        # for col in range(self.cols):
+        #     for row in range(self.rows):
+        #         tile = self._map[col][row]
 
-    def set_barrier(self, pos: Vector2):
+        #         if tile.type == TileType.PASSABLE:
+        #             pg.draw.rect(display_surface, YELLOW, tile) if tile.is_path else pg.draw.rect(
+        #                 display_surface, GREEN, tile
+        #             )
+
+        #         # if tile.type == TileType.PASSABLE and tile.is_path:
+        #         #     pg.draw.rect(display_surface, YELLOW, tile)
+
+        #         if tile.type == TileType.NOT_PASSABLE:
+        #             pg.draw.rect(display_surface, BLACK, tile)
+
+        #         if self.grid:
+        #             pg.draw.rect(display_surface, NEON_GREEN, tile, 1)
+
+    def add_hole(self, pos: Vector2):
         tile = self._get_tile(pos)
         tile.set_type(self, TileType.NOT_PASSABLE)
+        self.holes.append(tile)
 
     def count_tiles_with_prev(self):
         count = 0
@@ -183,8 +193,6 @@ class Map:
         start_tile = self._get_tile(start_pos)
         end_tile = self._get_tile(end_pos)
         searched_cells = 0
-        # print(start_tile.x, start_tile.y)
-        # print(end_tile.x, end_tile.y)
 
         open_set = []  # Nodes that need to be evaluated
         heapq.heappush(open_set, (start_tile.f, start_tile))
@@ -219,15 +227,14 @@ class Map:
                         tile.g = 0
                         tile.h = 0
 
-                return path[0:-1]
+                # TODO: Remove this shared object: just for visualization right now
+                self.path = path[0:-1]
+                return self.path
 
             # Get neighbours
             for x, y in current.adj_coords:
                 searched_cells += 1
                 neighbour = self._map[x][y]
-
-                # if neighbour.type == TileType.NOT_PASSABLE:
-                #     continue
 
                 if neighbour not in closed_set:
                     temp_g = current.g + 1
