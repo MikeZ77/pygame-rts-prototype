@@ -6,6 +6,8 @@ PROJECT_ROOT = os.path.abspath(os.path.join(__file__, "../.."))
 # Environment
 WINDOW_WIDTH = 960
 WINDOW_HEIGHT = 600
+MAP_WIDTH = WINDOW_WIDTH * 2
+MAP_HEIGHT = WINDOW_HEIGHT * 2
 TILE_WIDTH = 8
 TILE_HEIGHT = 8
 FPS = 60

@@ -13,6 +13,7 @@ from types_ import SpriteAnimationType as Animation
 
 class Unit(pg.sprite.Sprite):
     SPRITE_FOLDER = PROJECT_ROOT + "/assets/sprites/"
+    SOUND_FOLDER = PROJECT_ROOT + "/assets/sounds/"
     METADATA_FILE = SPRITE_FOLDER + "metadata.json"
     states = ["IDLE", "MOVING"]
 
@@ -55,18 +56,25 @@ class Unit(pg.sprite.Sprite):
         self.is_selected = False
         self.image = None
         self.rect = None
-        self._load_sprite_sheet(sheet=unit)
+        self._load_data(sheet=unit)
 
-    def _load_sprite_sheet(self, *, sheet: str):
+    def _load_data(self, *, sheet: str):
+        # Load unit sprite sheet
         sprite_sheet_path = Unit.SPRITE_FOLDER + sheet + ".png"
         sprite_sheet = pg.image.load(sprite_sheet_path).convert_alpha()
+
+        # Load metadata
         with open(Unit.METADATA_FILE, "r") as file:
             metadata = json.load(file)
-            unit_metadata = list(filter(lambda unit: unit["sheet"] == sheet, metadata))[0][
-                "sprites"
-            ]
+            unit_metadata = list(filter(lambda unit: unit["sheet"] == sheet, metadata))[0]
 
-        for data in unit_metadata:
+        # Set unit properties
+        unit_properties = unit_metadata["properties"]
+        self.__dict__.update(*unit_properties)
+
+        # Set sprite sheet data
+        sprite_meta_data = unit_metadata["sprites"]
+        for data in sprite_meta_data:
             type = data["type"]
             rect = pg.Rect(data["x"], data["y"], data["width"], data["height"])
             sprite = sprite_sheet.subsurface(rect)
@@ -142,8 +150,7 @@ class Unit(pg.sprite.Sprite):
     def draw(self, screen: Surface, end_pos: Tile):
         if self.is_selected:
             # TODO: This circle should be fixed when see metadata
-            radius = min(self.rect.width, self.rect.height) // 2
-            pg.draw.circle(screen, NEON_GREEN, self.rect.center, radius, 2)
+            pg.draw.circle(screen, NEON_GREEN, self.rect.center, self.selection_radius, 2)
 
         if self.path and self.state == "IDLE":
             self.follow_path()

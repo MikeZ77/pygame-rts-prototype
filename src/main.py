@@ -7,7 +7,15 @@ import pygame as pg
 from pygame import Rect, Surface
 from pygame.math import Vector2
 
-from constants import GREEN, NEON_GREEN, SAND_YELLOW, WINDOW_HEIGHT, WINDOW_WIDTH
+from constants import (
+    GREEN,
+    MAP_HEIGHT,
+    MAP_WIDTH,
+    NEON_GREEN,
+    SAND_YELLOW,
+    WINDOW_HEIGHT,
+    WINDOW_WIDTH,
+)
 from tileset import Map
 from unit import Unit
 
@@ -15,8 +23,8 @@ from unit import Unit
 class App:
     def __init__(self):
         self.screen = pg.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-        self.map_surface = Surface((WINDOW_WIDTH * 2, WINDOW_WIDTH * 2))
         self.camera_rect = pg.Rect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
+        self.map_surface = Surface((MAP_WIDTH, MAP_HEIGHT))
         self.camera_speed = 2
         self.camera_buffer = 5
         self.map = Map(self.map_surface)
@@ -35,13 +43,18 @@ class App:
         self.box: Rect = None
         self.drawing = False
 
+    def _get_mouse_offset(self) -> Tuple[bool, bool]:
+        """Helper method that gets the mouse offset based on the camera position"""
+        (mouse_x, mouse_y) = pg.mouse.get_pos()
+        return (mouse_x - self.camera_rect.left, mouse_y - self.camera_rect.top)
+
     def handle_input(self):
         """
         Handles useer input from the event loop.
         """
         for event in pg.event.get():
             mouse_left, _, mouse_right = pg.mouse.get_pressed()
-            mouse_x, mouse_y = pg.mouse.get_pos()
+            # mouse_x, mouse_y = pg.mouse.get_pos()
             # keys = pg.key.get_pressed()
 
             if event.type == pg.QUIT:
@@ -63,22 +76,15 @@ class App:
             if event.type == pg.MOUSEBUTTONDOWN:
                 # Handle all mouse left click actions
                 if mouse_left:
-                    self.handle_selection_box_create(mouse_x, mouse_y)
-                    self.handle_unit_selection(mouse_x, mouse_y, mouse_left)
+                    self.handle_selection_box_create(*self._get_mouse_offset())
+                    self.handle_unit_selection(*self._get_mouse_offset(), mouse_left)
 
                 # Handle all mouse right click actions
                 if mouse_right:
-                    self.player.is_selected and self.handle_unit_move(mouse_x, mouse_y)
+                    self.player.is_selected and self.handle_unit_move(*self._get_mouse_offset())
 
             if event.type == pg.MOUSEBUTTONUP:
                 event.button == 1 and self.handle_selection_box_end()
-
-            # if event.type == pg.MOUSEMOTION:
-            #     self.handle_camera(event.pos)
-            # x, y = event.pos
-            # if event.pos[0] > 958:
-            #     self.camera_rect.move_ip(-self.camera_speed, 0)
-            # self.camera_rect.move_ip(-x, -y)
 
     def handle_selection_box_create(self, mouse_x: int, mouse_y: int):
         """Sets the starting x,y pixel position for the selection box"""
@@ -104,36 +110,47 @@ class App:
         start_time = time.perf_counter()
         self.player.path = self.map.find_path(self.player.position, Vector2(mouse_x, mouse_y))
         print(time.perf_counter() - start_time, "\n")
-        print(self.map.count_tiles_with_prev())
         # TODO: Move to state class when we have more than one "player" unit
         self.end_pos = self.player.path[0]
 
     def update_camera(self, dt: float):
         mouse_x, mouse_y = pg.mouse.get_pos()
         width, height = WINDOW_WIDTH, WINDOW_HEIGHT
-        # Reset the camera movement
-        # if (
-        #     mouse_x < width - self.camera_buffer
-        #     and mouse_y < height - self.camera_buffer
-        #     and mouse_x > self.camera_buffer
-        #     and mouse_y > self.camera_buffer
-        # ):
-        #     self.camera_total = self.camera_max
+        map_rect = self.map_surface.get_rect()
+        # We need to keep track of where we have gone relative to the map surface
+        # For now we will assume the camera always starts top left of the map
+        left_offset = map_rect.left - self.camera_rect.left
+        top_offset = map_rect.top - self.camera_rect.top
 
-        if mouse_x in range(width - self.camera_buffer, width):
+        # TODO: Corners, right now the speed is doubled
+        if (
+            mouse_x in range(width - self.camera_buffer, width)
+            and left_offset >= 0
+            and left_offset < map_rect.right
+        ):
             self.camera_rect.move_ip(-self.camera_speed, 0)
 
-        if mouse_y in range(height - self.camera_buffer, height):
+        if (
+            mouse_y in range(height - self.camera_buffer, height)
+            and top_offset >= 0
+            and top_offset < map_rect.bottom
+        ):
             self.camera_rect.move_ip(0, -self.camera_speed)
+
+        if mouse_x in range(0, self.camera_buffer) and left_offset > 0:
+            self.camera_rect.move_ip(self.camera_speed, 0)
+
+        if mouse_y in range(0, self.camera_buffer) and top_offset > 0:
+            self.camera_rect.move_ip(0, self.camera_speed)
 
     def update_tile_hole(self):
         mouse_left, _, _ = pg.mouse.get_pressed()
         if self.drawing and mouse_left:
-            self.map.add_hole(Vector2(*pg.mouse.get_pos()))
+            self.map.add_hole(Vector2(*self._get_mouse_offset()))
 
     def update_selection_current(self):
         if self.selection_start:
-            self.selection_current = pg.mouse.get_pos()
+            self.selection_current = self._get_mouse_offset()
 
     def update_selection_box(self):
         if self.selection_start and self.selection_current:
@@ -169,8 +186,8 @@ class App:
     def render_selection_box(self):
         # Disable selection box when drawing holes
         if self.selection_start and self.selection_current and not self.drawing:
-            self.screen.blit(self.box_surface, self.position_offset)
-            pg.draw.rect(self.screen, NEON_GREEN, self.box, 2, border_radius=1)
+            self.map_surface.blit(self.box_surface, self.position_offset)
+            pg.draw.rect(self.map_surface, NEON_GREEN, self.box, 2, border_radius=1)
 
     def update(self, dt: float):
         """
@@ -196,7 +213,7 @@ class App:
         self.player_group.draw(self.map_surface)
         self.render_selection_box()
         fps_text = self.font.render(f"FPS: {self.clock.get_fps():.2f}", True, SAND_YELLOW)
-        self.map_surface.blit(fps_text, (10, 10))
+        self.screen.blit(fps_text, (10, 10))
         pg.display.update()
 
     def game_loop(self):

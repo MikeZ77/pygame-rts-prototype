@@ -115,6 +115,8 @@ class Map:
         self.cols = self.map_surface.get_width() // TILE_WIDTH
         self.rows = self.map_surface.get_height() // TILE_HEIGHT
 
+        print(self.map_surface.get_width(), self.map_surface.get_height())
+
         for col in range(self.cols):
             self._map.append([])
             for row in range(self.rows):
@@ -179,15 +181,6 @@ class Map:
         tile = self._get_tile(pos)
         tile.set_type(self, TileType.NOT_PASSABLE)
         self.holes.append(tile)
-
-    def count_tiles_with_prev(self):
-        count = 0
-        for col in range(self.cols):
-            for row in range(self.rows):
-                tile = self._map[col][row]
-                if tile.prev:
-                    count += 1
-        return count
 
     def find_path(self, start_pos: Vector2, end_pos: Vector2) -> List[Vector2]:
         start_tile = self._get_tile(start_pos)

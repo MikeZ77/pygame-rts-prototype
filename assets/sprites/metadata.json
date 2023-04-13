@@ -1,7 +1,11 @@
 [
     {
         "sheet": "footman",
-        "circle_radius":10,
+        "properties":[
+            {
+                "selection_radius": 16
+            }
+        ],
         "sprites": [
             {
                 "x": 22,
