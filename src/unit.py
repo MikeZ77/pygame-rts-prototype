@@ -1,9 +1,11 @@
 import json
+import random
 from typing import List, Tuple, Union
 
 import pygame as pg
 from pygame import Surface
 from pygame.math import Vector2
+from pygame.mixer import Sound
 from transitions import Machine
 
 from constants import MAGENTA, NEON_GREEN, PROJECT_ROOT
@@ -48,15 +50,36 @@ class Unit(pg.sprite.Sprite):
             Animation.DIAGONAL_DOWN_LEFT: [],
             Animation.DIAGONAL_DOWN_RIGHT: [],
         }
+        self.sound_effects: dict[list[Sound]] = {"select": [], "move": []}
         self.machine = Machine(model=self, states=Unit.states, initial="IDLE")
         self.machine.add_transition(trigger="follow_path", source="IDLE", dest="MOVING")
         self.machine.add_transition(trigger="finished_path", source="MOVING", dest="IDLE")
-        self.path: Union[List[Tile], None] = None
+        self._path: Union[List[Tile], None] = None
         self.next_tile = None
-        self.is_selected = False
+        self._is_selected = False
         self.image = None
         self.rect = None
         self._load_data(sheet=unit)
+
+    @property
+    def is_selected(self):
+        return self._is_selected
+
+    @is_selected.setter
+    def is_selected(self, new_value: bool):
+        if new_value:
+            self._play_sound("select")
+        self._is_selected = new_value
+
+    @property
+    def path(self):
+        return self._path
+
+    @path.setter
+    def path(self, new_value: list[Tile]):
+        if self._path is not new_value:
+            self._play_sound("move")
+        self._path = new_value
 
     def _load_data(self, *, sheet: str):
         # Load unit sprite sheet
@@ -67,6 +90,13 @@ class Unit(pg.sprite.Sprite):
         with open(Unit.METADATA_FILE, "r") as file:
             metadata = json.load(file)
             unit_metadata = list(filter(lambda unit: unit["sheet"] == sheet, metadata))[0]
+
+        # Load sound files
+        sound_fle_path = Unit.SOUND_FOLDER + sheet
+        sounds = unit_metadata["sounds"]
+        for key, value in self.sound_effects.items():
+            for sound in sounds[key]:
+                value.append(pg.mixer.Sound(sound_fle_path + "/" + sound))
 
         # Set unit properties
         unit_properties = unit_metadata["properties"]
@@ -118,13 +148,19 @@ class Unit(pg.sprite.Sprite):
             self.image: Surface = self.frames[self.frame_type][self.frame_index]
             self.rect = self.image.get_rect()
 
+    def _play_sound(self, sound: str):
+        print(sound)
+        select_sounds = self.sound_effects[sound]
+        random_sound = random.randint(0, len(select_sounds) - 1)
+        select_sounds[random_sound].play()
+
     def update(self, *, dt: float):
         """
         Updates are received by the GameManager and handled here based on the current state.
         """
         if self.state == "MOVING":
             if not self.next_tile:
-                self.next_tile = self.path.pop()
+                self.next_tile = self._path.pop()
 
             next_position = self.next_tile.rect.center
             direction: Vector2 = round((Vector2(next_position) - self.position).normalize())
@@ -138,7 +174,7 @@ class Unit(pg.sprite.Sprite):
             self._cycle_sprite_frame(animation, dt)
 
             if tuple(round(self.position)) == next_position:
-                if len(self.path):
+                if len(self._path):
                     self.next_tile.prev = None
                     self.next_tile.is_path = False
                     self.next_tile = None
@@ -148,11 +184,11 @@ class Unit(pg.sprite.Sprite):
         self.rect.center = (round(self.position.x), round(self.position.y))
 
     def draw(self, screen: Surface, end_pos: Tile):
-        if self.is_selected:
+        if self._is_selected:
             # TODO: This circle should be fixed when see metadata
             pg.draw.circle(screen, NEON_GREEN, self.rect.center, self.selection_radius, 2)
 
-        if self.path and self.state == "IDLE":
+        if self._path and self.state == "IDLE":
             self.follow_path()
 
         if self.state == "MOVING":

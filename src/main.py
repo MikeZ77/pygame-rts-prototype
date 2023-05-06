@@ -117,23 +117,25 @@ class App:
         mouse_x, mouse_y = pg.mouse.get_pos()
         width, height = WINDOW_WIDTH, WINDOW_HEIGHT
         map_rect = self.map_surface.get_rect()
+        # print(mouse_x, mouse_y)
         # We need to keep track of where we have gone relative to the map surface
         # For now we will assume the camera always starts top left of the map
         left_offset = map_rect.left - self.camera_rect.left
+        right_offset = map_rect.right - self.camera_rect.right
         top_offset = map_rect.top - self.camera_rect.top
-
+        bottom_offset = map_rect.bottom - self.camera_rect.bottom
         # TODO: Corners, right now the speed is doubled
         if (
             mouse_x in range(width - self.camera_buffer, width)
             and left_offset >= 0
-            and left_offset < map_rect.right
+            and right_offset < map_rect.right
         ):
             self.camera_rect.move_ip(-self.camera_speed, 0)
 
         if (
             mouse_y in range(height - self.camera_buffer, height)
             and top_offset >= 0
-            and top_offset < map_rect.bottom
+            and bottom_offset < map_rect.bottom
         ):
             self.camera_rect.move_ip(0, -self.camera_speed)
 
@@ -208,7 +210,7 @@ class App:
         # self.screen.blit(self.map_surface, (0, 0))
         self.screen.blit(self.map_surface, self.camera_rect)
         self.map_surface.fill(GREEN)
-        self.map.draw(self.map_surface)
+        self.map.draw(self.map_surface, self.camera_rect)
         self.player.draw(self.map_surface, self.end_pos)
         self.player_group.draw(self.map_surface)
         self.render_selection_box()
@@ -231,6 +233,7 @@ class App:
 
 def main():
     pg.init()
+    pg.mixer.init()
     App().game_loop()
     pg.quit()
 

@@ -6,6 +6,20 @@
                 "selection_radius": 16
             }
         ],
+        "sounds": 
+            {
+                "move": [
+                    "move1.wav",
+                    "move2.wav"
+                ],
+                "select": [
+                    "select1.wav",
+                    "select2.wav",
+                    "select3.wav",
+                    "select4.wav"
+                ]
+            }
+        ,
         "sprites": [
             {
                 "x": 22,
